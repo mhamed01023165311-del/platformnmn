@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 1. SMS Logs Collection: Uploaded by mobile SMS forwarder or student client
+    match /sms_logs/{smsId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+
+    // 2. Students & Users Collection: Wallet balance & profiles & auth device lock
+    match /students/{studentId} {
+      allow read, write: if true;
+
+      // Subcollection: Wallet Transactions
+      match /transactions/{transactionId} {
+        allow read, write: if true;
+      }
+    }
+
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // 3. Courses and Platform Settings
+    match /courses/{courseId} {
+      allow read, write: if true;
+    }
+
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Default deny for all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

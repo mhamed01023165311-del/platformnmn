@@ -1,0 +1,6 @@
+{
+  "name": "منصة الأستاذ التعليمية الذكية - EduMaster",
+  "description": "منصة تعليم إلكتروني متكاملة وشاملة للمدرس: هيكلة الكورسات، صفحة هبوط عصرية، نظام اختبارات ذكي، وحلول حماية المحتوى والتسعير.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

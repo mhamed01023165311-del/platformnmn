@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "SmsLog": {
+      "title": "SmsLog",
+      "description": "Incoming SMS from Vodafone Cash forwarder app on mobile",
+      "type": "object",
+      "properties": {
+        "sender_phone": {
+          "type": "string",
+          "description": "Phone number from which funds were transferred",
+          "maxLength": 20
+        },
+        "amount": {
+          "type": "number",
+          "description": "Exact amount stated in the SMS"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp of when the SMS arrived"
+        },
+        "is_used": {
+          "type": "boolean",
+          "description": "Whether this SMS has already been redeemed"
+        },
+        "raw_message": {
+          "type": "string",
+          "description": "Original SMS text",
+          "maxLength": 1000
+        }
+      },
+      "required": ["sender_phone", "amount", "is_used"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student profile with digital wallet balance",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Student full name",
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "description": "Student phone number",
+          "maxLength": 20
+        },
+        "balance": {
+          "type": "number",
+          "description": "Current balance in student digital wallet"
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["phone", "balance"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Audit record of deposit or withdraw action",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["deposit", "withdraw"],
+          "description": "Transaction type"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount deposited or withdrawn"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Description of the operation"
+        },
+        "created_at": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["type", "amount", "created_at"]
+    }
+  },
+  "firestore": {
+    "/sms_logs/{smsId}": {
+      "schema": "SmsLog",
+      "description": "Incoming Vodafone Cash SMS records uploaded by Android forwarder"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Student wallet documents"
+    },
+    "/students/{studentId}/transactions/{transactionId}": {
+      "schema": "WalletTransaction",
+      "description": "Student wallet transactions history"
+    }
+  }
+}
