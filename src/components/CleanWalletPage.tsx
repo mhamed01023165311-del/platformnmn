@@ -183,7 +183,7 @@ export const CleanWalletPage: React.FC<CleanWalletPageProps> = ({
             </span>
             <div className="flex items-baseline justify-center sm:justify-start gap-2">
               <span className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight font-mono">
-                {balance.toLocaleString('ar-EG')}
+                {(Number.isFinite(balance) ? balance : 0).toLocaleString('ar-EG')}
               </span>
               <span className="text-lg sm:text-xl font-bold text-emerald-400">
                 جنيه مصري

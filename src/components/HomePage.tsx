@@ -79,7 +79,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               className="py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs sm:text-sm border border-slate-700 transition flex items-center gap-2 cursor-pointer shadow-md"
             >
               <Wallet className="w-4 h-4 text-emerald-400" />
-              <span>رصيد المحفظة ({balance} ج.م)</span>
+              <span>رصيد المحفظة ({(Number.isFinite(balance) ? balance : 0).toLocaleString('ar-EG')} ج.م)</span>
             </button>
           </div>
         </div>
@@ -99,7 +99,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-white font-mono">{balance}</span>
+            <span className="text-2xl font-black text-white font-mono">{(Number.isFinite(balance) ? balance : 0).toLocaleString('ar-EG')}</span>
             <span className="text-xs text-emerald-400 font-bold">جنيه مصري</span>
           </div>
           <span className="text-[11px] text-slate-400 group-hover:text-emerald-300 transition-colors block">
@@ -119,7 +119,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-white font-mono">{enrolledCourseIds.length}</span>
+            <span className="text-2xl font-black text-white font-mono">{enrolledCourseIds?.length || 0}</span>
             <span className="text-xs text-indigo-400 font-bold">كورسات مفعلة</span>
           </div>
           <span className="text-[11px] text-slate-400 group-hover:text-indigo-300 transition-colors block">

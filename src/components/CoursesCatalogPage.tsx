@@ -302,7 +302,7 @@ export const CoursesCatalogPage: React.FC<CoursesCatalogPageProps> = ({
             <div className="text-right">
               <span className="text-[11px] text-slate-400 block font-medium">رصيد محفظتك:</span>
               <span className="text-lg sm:text-xl font-black text-emerald-400 font-mono">
-                {walletBalance.toLocaleString('ar-EG')} ج.م
+                {(Number.isFinite(walletBalance) ? walletBalance : 0).toLocaleString('ar-EG')} ج.م
               </span>
             </div>
             <button

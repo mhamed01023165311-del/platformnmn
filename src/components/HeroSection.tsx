@@ -92,7 +92,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                   className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-600 hover:from-emerald-400 hover:to-indigo-500 text-white font-extrabold text-base shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/35 transition-all transform hover:-translate-y-1 flex items-center gap-3 cursor-pointer"
                 >
                   <Wallet className="w-5 h-5 text-emerald-300" />
-                  <span>شحن المحفظة وفودافون كاش ({walletBalance} ج.م)</span>
+                  <span>شحن المحفظة وفودافون كاش ({(Number.isFinite(walletBalance) ? walletBalance : 0).toLocaleString('ar-EG')} ج.م)</span>
                   <ArrowLeft className="w-4 h-4" />
                 </button>
 

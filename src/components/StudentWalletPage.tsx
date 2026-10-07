@@ -241,7 +241,7 @@ export const StudentWalletPage: React.FC<StudentWalletPageProps> = ({
               <span className="text-xs text-slate-400 font-bold block mb-1">الرصيد المتاح حالياً بالجنيه المصري</span>
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl sm:text-5xl font-black text-white tracking-tight font-mono">
-                  {userProfile.walletBalance}
+                  {(Number.isFinite(userProfile.walletBalance) ? userProfile.walletBalance : 0).toLocaleString('ar-EG')}
                 </span>
                 <span className="text-lg font-black text-emerald-400">ج.م</span>
               </div>

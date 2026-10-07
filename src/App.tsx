@@ -458,7 +458,7 @@ export function App() {
                 </div>
                 <div className="flex items-baseline gap-1 text-xs">
                   <span className="font-extrabold text-white font-mono group-hover:text-emerald-300 transition-colors">
-                    {balance.toLocaleString('ar-EG')}
+                    {(Number.isFinite(balance) ? balance : 0).toLocaleString('ar-EG')}
                   </span>
                   <span className="text-[10px] text-emerald-400 font-bold">ج.م</span>
                 </div>
@@ -581,13 +581,15 @@ export function App() {
         )}
       </main>
 
-      {/* Interactive Organic Bottom Nav Bar */}
-      <OrganicBottomNav
-        currentPage={currentPage}
-        onNavigate={setCurrentPage}
-        walletBalance={balance}
-        isDeveloper={isDeveloperMode}
-      />
+      {/* Interactive Organic Bottom Nav Bar (Only visible after login/signup) */}
+      {currentUser && (
+        <OrganicBottomNav
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+          walletBalance={balance}
+          isDeveloper={isDeveloperMode}
+        />
+      )}
 
     </div>
   );

@@ -755,7 +755,7 @@ export async function signInUser(
  */
 export async function signInWithGoogleAuth(
   selectedAccount?: { email: string; name: string; avatar?: string }
-): Promise<{ success: boolean; user: UserAccount; role: 'student'; message: string }> {
+): Promise<{ success: boolean; user?: UserAccount; role?: 'student'; message: string; cancelled?: boolean }> {
   let googleEmail = selectedAccount?.email;
   let googleName = selectedAccount?.name;
   let googleAvatar = selectedAccount?.avatar;
@@ -768,60 +768,87 @@ export async function signInWithGoogleAuth(
         prompt: 'select_account'
       });
       const result = await signInWithPopup(auth, provider);
-      if (result && result.user) {
-        googleEmail = result.user.email || undefined;
-        googleName = result.user.displayName || undefined;
+      if (result && result.user && result.user.email) {
+        googleEmail = result.user.email;
+        googleName = result.user.displayName || result.user.email.split('@')[0];
         googleAvatar = result.user.photoURL || undefined;
+      } else {
+        return {
+          success: false,
+          cancelled: true,
+          message: 'لم يتم استرجاع بريد إلكتروني صحيح من Google.'
+        };
       }
     } catch (popupErr: any) {
-      console.warn('Firebase Google Auth popup note:', popupErr);
-      if (!googleEmail) {
-        googleEmail = 'student.google@edumaster.com';
-        googleName = 'طالب جوجل (Google User)';
+      const code = popupErr?.code || '';
+      // Clean handling for popup closed or cancelled by user
+      if (
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request' ||
+        code === 'auth/user-cancelled' ||
+        code === 'auth/popup-blocked'
+      ) {
+        return {
+          success: false,
+          cancelled: true,
+          message: 'تم إغلاق نافذة تسجيل الدخول.'
+        };
       }
+      return {
+        success: false,
+        message: popupErr?.message || 'فشل تسجيل الدخول عبر Google.'
+      };
     }
   }
 
-  const cleanEmail = (googleEmail || 'student.google@edumaster.com').trim().toLowerCase();
+  if (!googleEmail) {
+    return {
+      success: false,
+      cancelled: true,
+      message: 'لم يتم توفير بريد إلكتروني.'
+    };
+  }
+
+  const cleanEmail = googleEmail.trim().toLowerCase();
   const userId = sanitizeEmailKey(cleanEmail);
   const userRef = doc(db, 'users', userId);
   const studentRef = doc(db, 'students', userId);
   const deviceId = getOrCreateDeviceId();
   const now = new Date().toISOString();
 
-  // Check if student doc already exists to preserve existing balance/courses
-  const existingDoc = await getDoc(studentRef);
-  let studentCode = generateStudentCode();
-  let currentBalance = 0; // Default for new student: 0 EGP
-  let enrolledCourses: string[] = []; // Default for new student: []
-  let currentAvatar = googleAvatar || '';
-  let studentName = googleName || 'طالب جوجل';
-  let studentPhone = '01012345678';
-
-  if (existingDoc.exists()) {
-    const existingData = existingDoc.data();
-    studentCode = existingData.student_code || studentCode;
-    currentBalance = typeof existingData.balance === 'number' ? existingData.balance : 0;
-    enrolledCourses = Array.isArray(existingData.enrolledCourses) ? existingData.enrolledCourses : [];
-    currentAvatar = existingData.avatar || currentAvatar;
-    studentName = existingData.name || studentName;
-    studentPhone = existingData.phone || studentPhone;
-  }
-
-  const userData: UserAccount = {
-    id: userId,
-    student_code: studentCode,
-    email: cleanEmail,
-    name: studentName,
-    phone: studentPhone,
-    avatar: currentAvatar,
-    role: 'student',
-    active_device_id: deviceId,
-    created_at: existingDoc.exists() ? (existingDoc.data().created_at || now) : now,
-    last_login_at: now
-  };
-
   try {
+    // Check if student doc already exists to preserve existing balance/courses
+    const existingDoc = await getDoc(studentRef);
+    let studentCode = generateStudentCode();
+    let currentBalance = 0; // Default for new student: 0 EGP
+    let enrolledCourses: string[] = []; // Default for new student: []
+    let currentAvatar = googleAvatar || '';
+    let studentName = googleName || cleanEmail.split('@')[0];
+    let studentPhone = '01012345678';
+
+    if (existingDoc.exists()) {
+      const existingData = existingDoc.data();
+      studentCode = existingData.student_code || studentCode;
+      currentBalance = typeof existingData.balance === 'number' ? existingData.balance : 0;
+      enrolledCourses = Array.isArray(existingData.enrolledCourses) ? existingData.enrolledCourses : [];
+      currentAvatar = existingData.avatar || currentAvatar;
+      studentName = existingData.name || studentName;
+      studentPhone = existingData.phone || studentPhone;
+    }
+
+    const userData: UserAccount = {
+      id: userId,
+      student_code: studentCode,
+      email: cleanEmail,
+      name: studentName,
+      phone: studentPhone,
+      avatar: currentAvatar,
+      role: 'student',
+      active_device_id: deviceId,
+      created_at: existingDoc.exists() ? (existingDoc.data().created_at || now) : now,
+      last_login_at: now
+    };
+
     await setDoc(userRef, {
       ...userData,
       provider: 'google'
@@ -848,10 +875,8 @@ export async function signInWithGoogleAuth(
     };
   } catch (err: any) {
     return {
-      success: true,
-      role: 'student',
-      user: userData,
-      message: 'تم تسجيل الدخول وتفعيل الجهاز.'
+      success: false,
+      message: 'خطأ أثناء مزامنة بيانات الحساب: ' + (err?.message || err)
     };
   }
 }

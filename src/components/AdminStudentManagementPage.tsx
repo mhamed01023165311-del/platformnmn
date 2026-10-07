@@ -322,7 +322,7 @@ export const AdminStudentManagementPage: React.FC<AdminStudentManagementPageProp
                     <div className="text-right">
                       <span className="text-[10px] text-slate-500 block">رصيد المحفظة:</span>
                       <span className="font-black text-emerald-400 font-mono text-sm">
-                        {(student.balance || 0).toLocaleString('ar-EG')} ج.م
+                        {(Number.isFinite(student.balance) ? student.balance : 0).toLocaleString('ar-EG')} ج.م
                       </span>
                     </div>
 

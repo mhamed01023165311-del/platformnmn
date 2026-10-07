@@ -123,7 +123,8 @@ export const SmartQuizModal: React.FC<SmartQuizModalProps> = ({
   const correctCount = questions.filter(
     q => selectedAnswers[q.id] === q.correctOptionId
   ).length;
-  const scorePercentage = Math.round((correctCount / questions.length) * 100);
+  const rawScore = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+  const scorePercentage = Number.isFinite(rawScore) ? rawScore : 0;
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

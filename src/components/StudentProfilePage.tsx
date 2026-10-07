@@ -178,7 +178,7 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
             >
               <span className="text-[10px] text-slate-400 block">رصيد المحفظة</span>
               <span className="text-base sm:text-lg font-black text-emerald-400 font-mono group-hover:scale-105 transition-transform inline-block">
-                {balance.toLocaleString('ar-EG')} ج.م
+                {(Number.isFinite(balance) ? balance : 0).toLocaleString('ar-EG')} ج.م
               </span>
             </button>
 

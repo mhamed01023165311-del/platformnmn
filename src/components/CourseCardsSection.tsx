@@ -92,7 +92,10 @@ export const CourseCardsSection: React.FC<CourseCardsSectionProps> = ({
         {/* Courses Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredCourses.map((course) => {
-            const discountPercentage = Math.round(((course.originalPrice - course.discountedPrice) / course.originalPrice) * 100);
+            const rawDiscount = course.originalPrice > 0 
+              ? Math.round(((course.originalPrice - course.discountedPrice) / course.originalPrice) * 100)
+              : 0;
+            const discountPercentage = Number.isFinite(rawDiscount) && rawDiscount > 0 ? rawDiscount : 0;
             const isEnrolled = enrolledCourseIds.includes(course.id);
 
             return (

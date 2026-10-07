@@ -115,7 +115,8 @@ export const SmartQuizPage: React.FC<SmartQuizPageProps> = ({
   const isCurrentSubmitted = isAnswerSubmitted[currentQ?.id];
   const isCurrentCorrect = chosenOptionId === currentQ?.correctOptionId;
   const correctCount = questions.filter(q => selectedAnswers[q.id] === q.correctOptionId).length;
-  const scorePercentage = Math.round((correctCount / questions.length) * 100);
+  const rawScore = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+  const scorePercentage = Number.isFinite(rawScore) ? rawScore : 0;
 
   return (
     <div className="py-10 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto space-y-8 text-right animate-fadeIn">

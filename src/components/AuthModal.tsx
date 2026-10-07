@@ -97,11 +97,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMessage(null);
     try {
       const res = await signInWithGoogleAuth();
-      if (res.success && res.user) {
-        onSuccess(res.user, res.role);
+      if (res.success && res.user && res.user.email) {
+        onSuccess(res.user, res.role || 'student');
+      } else if (!res.cancelled && res.message) {
+        setErrorMessage(res.message);
       }
+      // If cancelled by user closing popup, simply stop loading with no error banner
     } catch (err: any) {
-      setErrorMessage('فشل تسجيل الدخول عبر Google: ' + err.message);
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        setErrorMessage('فشل تسجيل الدخول عبر Google: ' + (err?.message || err));
+      }
     } finally {
       setLoading(false);
     }
