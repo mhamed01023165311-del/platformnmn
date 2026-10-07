@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { apiRouter } from './src/server/routes/api';
 
@@ -22,19 +23,30 @@ async function startServer() {
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'healthy',
-      service: 'Vodafone Cash Forwarder System',
+      service: 'EduMaster Platform System',
       timestamp: new Date().toISOString()
     });
   });
 
-  // Vite integration
+  // Vite integration / Static files serving
   if (process.env.NODE_ENV === 'production') {
     // Serve production static build
     const distPath = path.resolve(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.resolve(distPath, 'index.html'));
-    });
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        const indexPath = path.resolve(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(200).send('EduMaster Server Running');
+        }
+      });
+    } else {
+      app.get('*', (req, res) => {
+        res.status(200).send('EduMaster Server Running (Dist building)');
+      });
+    }
   } else {
     // Development mode: Mount Vite middleware
     const { createServer: createViteServer } = await import('vite');
@@ -46,7 +58,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 [Vodafone Cash Forwarder Server] running on http://0.0.0.0:${PORT}`);
+    console.log(`🚀 [EduMaster Server] running on http://0.0.0.0:${PORT}`);
   });
 }
 
