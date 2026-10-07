@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Phone, 
@@ -15,9 +15,21 @@ import {
   AlertCircle,
   Hash,
   Sparkles,
-  Smartphone
+  Smartphone,
+  QrCode,
+  Printer,
+  Calendar,
+  Clock,
+  MapPin,
+  Maximize2
 } from 'lucide-react';
-import { UserAccount, updateStudentProfileInFirestore } from '../firebase';
+import { QRCodeSVG } from 'qrcode.react';
+import { 
+  UserAccount, 
+  updateStudentProfileInFirestore, 
+  subscribeToStudentAttendance, 
+  AttendanceRecord 
+} from '../firebase';
 import { PageId } from '../types';
 
 interface StudentProfilePageProps {
@@ -51,7 +63,21 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   
   const [isSaving, setIsSaving] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showLargeQr, setShowLargeQr] = useState(false);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const displayCode = studentCode || currentUser?.student_code || currentUser?.id || 'STD-782910';
+  const studentUid = currentUser?.id || 'std_' + displayCode;
+
+  // Realtime subscription to student's center attendance records
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const unsub = subscribeToStudentAttendance(currentUser.id, (records) => {
+      setAttendanceRecords(records);
+    });
+    return () => unsub();
+  }, [currentUser?.id]);
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
@@ -59,10 +85,14 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   };
 
   const handleCopyCode = () => {
-    const codeToCopy = studentCode || currentUser?.student_code || currentUser?.id || 'STD-2026';
+    const codeToCopy = displayCode;
     navigator.clipboard.writeText(codeToCopy);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2500);
+  };
+
+  const handlePrintCard = () => {
+    window.print();
   };
 
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,10 +139,19 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     }
   };
 
-  const displayCode = studentCode || currentUser?.student_code || currentUser?.id || 'STD-782910';
+  // QR Payload JSON
+  const qrPayload = JSON.stringify({
+    student_id: studentUid,
+    student_code: displayCode,
+    name: name,
+    phone: phone
+  });
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayAttendance = attendanceRecords.find(r => r.date === todayStr);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8 animate-fadeIn" dir="rtl">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8 animate-fadeIn" dir="rtl">
       
       {/* Toast Notification */}
       {toast && (
@@ -196,42 +235,182 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         </div>
       </div>
 
-      {/* Unique Student Code Card (كود الطالب الفريد) */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-indigo-500/30 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 text-center sm:text-right">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
-            <Hash className="w-6 h-6" />
+      {/* FEATURE 1: DIGITAL STUDENT ID CARD WITH QR CODE (بطاقة الطالب الذكية الرسمية) */}
+      <div className="relative rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-900 border-2 border-indigo-500/40 p-6 sm:p-8 shadow-2xl overflow-hidden space-y-6">
+        <div className="absolute -right-16 -top-16 w-56 h-56 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        {/* Card Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-indigo-500/30 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-inner">
+              <QrCode className="w-7 h-7" />
+            </div>
+            <div>
+              <span className="text-[10px] bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                Official Student ID Card
+              </span>
+              <h2 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                بطاقة الطالب الرقمية المعتمدة (QR Code)
+              </h2>
+            </div>
           </div>
-          <div>
-            <span className="text-xs text-indigo-300 font-bold block">
-              كود الطالب الفريد (Student ID / Code):
-            </span>
-            <span className="text-xl sm:text-2xl font-black text-white font-mono tracking-wider block mt-0.5" dir="ltr">
-              {displayCode}
-            </span>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              استخدم هذا الكود الفريد عند التواصل مع المعلم أو عند التحقق من بياناتك.
-            </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowLargeQr(true)}
+              className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span>تكبير الـ QR</span>
+            </button>
+            <button
+              onClick={handlePrintCard}
+              className="py-2 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-950/50"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>طباعة الكارنيه</span>
+            </button>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleCopyCode}
-          className="py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-indigo-950/50 cursor-pointer shrink-0"
-        >
-          {copiedCode ? (
-            <>
-              <Check className="w-4 h-4 text-emerald-300" />
-              <span>تم نسخ الكود</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4" />
-              <span>نسخ كود الطالب</span>
-            </>
-          )}
-        </button>
+        {/* Card Body: Student ID layout */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+          
+          {/* QR Code Container */}
+          <div className="flex flex-col items-center justify-center bg-white p-4 sm:p-5 rounded-3xl shadow-xl border-4 border-indigo-400/30 text-center mx-auto">
+            <QRCodeSVG
+              value={qrPayload}
+              size={170}
+              level="H"
+              includeMargin={false}
+              className="rounded-lg shadow-sm"
+            />
+            <span className="text-[11px] font-black text-slate-800 font-mono mt-2" dir="ltr">
+              {displayCode}
+            </span>
+            <span className="text-[10px] text-slate-600">امسح الكود لتسجيل الحضور في السنتر</span>
+          </div>
+
+          {/* Student Card Info Details */}
+          <div className="md:col-span-2 space-y-3.5 text-right">
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">اسم الطالب بالكامل:</span>
+                <span className="text-sm sm:text-base font-bold text-white">{name}</span>
+              </div>
+
+              <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">كود الطالب (Student ID):</span>
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className="text-sm sm:text-base font-mono font-black text-indigo-400" dir="ltr">
+                    {displayCode}
+                  </span>
+                  <button onClick={handleCopyCode} className="text-xs text-slate-400 hover:text-white">
+                    {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">رقم المحمول:</span>
+                <span className="text-xs sm:text-sm font-mono text-slate-200 font-bold">{phone}</span>
+              </div>
+
+              <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">حالة الحساب والأمان:</span>
+                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>نشط ومقيد بجهاز معتمد</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Attendance Status Today Banner */}
+            <div className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs ${
+              todayAttendance 
+                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-200' 
+                : 'bg-slate-950/60 border-slate-800 text-slate-300'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <Clock className={`w-4 h-4 ${todayAttendance ? 'text-emerald-400' : 'text-slate-400'}`} />
+                <div>
+                  <span className="font-bold block">
+                    {todayAttendance ? 'حالة حضور اليوم: حضر في السنتر ✓' : 'حالة حضور اليوم: لم يتم مسح الكود اليوم بعد'}
+                  </span>
+                  {todayAttendance && (
+                    <span className="text-[11px] text-emerald-300 font-mono">
+                      الساعة: {todayAttendance.time} · {todayAttendance.center_group}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold ${
+                todayAttendance ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+              }`}>
+                {todayAttendance ? 'تم إثبات الحضور' : 'في الانتظار'}
+              </span>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      {/* FEATURE 2: ATTENDANCE HISTORY (سجل الحضور في السنتر والمحاضرات) */}
+      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 sm:p-8 shadow-xl space-y-5">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="space-y-0.5">
+            <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-emerald-400" />
+              <span>سجل حضور الطالب في السنتر والمجموعات</span>
+            </h3>
+            <p className="text-xs text-slate-400">تتبع تلقائي لحظي لجميع أيام الحضور المسجلة بالـ QR Code</p>
+          </div>
+
+          <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full font-bold">
+            إجمالي الحضور: {attendanceRecords.length} حصة
+          </span>
+        </div>
+
+        {attendanceRecords.length === 0 ? (
+          <div className="p-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800/80 text-slate-400 space-y-2">
+            <Clock className="w-8 h-8 text-slate-600 mx-auto" />
+            <p className="font-bold text-sm text-slate-300">لم يتم تسجيل حضور حتى الآن</p>
+            <p className="text-xs">سيظهر هنا سجل حضورك فور قيام المساعد/الأستاذ بمسح كود الـ QR الخاص بك في السنتر.</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden divide-y divide-slate-800/80">
+            {attendanceRecords.map((rec, index) => (
+              <div key={index} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold">
+                    ✓
+                  </div>
+                  <div>
+                    <span className="font-bold text-white text-sm block">
+                      {rec.center_group || 'حصة السنتر'}
+                    </span>
+                    <span className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                      <Calendar className="w-3 h-3" />
+                      <span>{rec.date}</span>
+                      <span>•</span>
+                      <Clock className="w-3 h-3" />
+                      <span className="font-mono">{rec.time}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="px-3 py-1 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-xs font-bold">
+                    حضر في السنتر ✓
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Edit Personal Information Form */}
@@ -341,6 +520,34 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         </button>
       </div>
 
+      {/* Large QR Full-Screen Modal */}
+      {showLargeQr && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md animate-fadeIn cursor-pointer"
+          onClick={() => setShowLargeQr(false)}
+        >
+          <div 
+            className="bg-white p-8 rounded-3xl text-center space-y-4 shadow-2xl max-w-sm w-full cursor-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-black text-slate-900">{name}</h3>
+            <div className="p-2 bg-white rounded-2xl flex justify-center">
+              <QRCodeSVG value={qrPayload} size={260} level="H" />
+            </div>
+            <p className="text-base font-black text-indigo-700 font-mono tracking-wider" dir="ltr">
+              {displayCode}
+            </p>
+            <button
+              onClick={() => setShowLargeQr(false)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs"
+            >
+              إغلاق النافذة
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
+

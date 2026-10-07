@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Play, 
@@ -14,9 +14,12 @@ import {
   Lock,
   Layers,
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  Clock,
+  Radio
 } from 'lucide-react';
 import { Lesson } from '../types';
+import { startOnlineLectureSession, endOnlineLectureSession } from '../firebase';
 
 interface LessonPlayerModalProps {
   isOpen: boolean;
@@ -25,6 +28,7 @@ interface LessonPlayerModalProps {
   courseTitle: string;
   studentName?: string;
   studentPhone?: string;
+  studentId?: string;
   onOpenQuiz: (quizId?: string) => void;
 }
 
@@ -35,12 +39,17 @@ export const LessonPlayerModal: React.FC<LessonPlayerModalProps> = ({
   courseTitle,
   studentName = 'طالب تجريبي (عمر شريف)',
   studentPhone = '01012345678',
+  studentId,
   onOpenQuiz
 }) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [activeTab, setActiveTab] = useState<'video' | 'pdf' | 'exercises'>('video');
   const [watermarkPos, setWatermarkPos] = useState({ top: '35%', left: '40%' });
   const [showWatermarkInfo, setShowWatermarkInfo] = useState(false);
+  const [watchSeconds, setWatchSeconds] = useState(0);
+
+  const sessionIdRef = useRef<string | null>(null);
+  const watchSecondsRef = useRef(0);
 
   // Dynamic moving forensic watermark simulation: changes position every 10 seconds
   useEffect(() => {
@@ -55,7 +64,53 @@ export const LessonPlayerModal: React.FC<LessonPlayerModalProps> = ({
     return () => clearInterval(interval);
   }, [isOpen]);
 
+  // Online Lecture Attendance & Watch Duration Tracking
+  useEffect(() => {
+    if (!isOpen || !lesson) return;
+
+    watchSecondsRef.current = 0;
+    setWatchSeconds(0);
+
+    // 1. Record Stream Start Time in Firestore
+    const sid = studentId || ('std_' + (studentPhone || 'unknown'));
+    startOnlineLectureSession({
+      student_id: sid,
+      student_name: studentName,
+      lesson_id: lesson.id,
+      lesson_title: lesson.title,
+      course_title: courseTitle
+    }).then(sessionId => {
+      sessionIdRef.current = sessionId;
+    });
+
+    // 2. Count watch seconds every second
+    const timer = setInterval(() => {
+      watchSecondsRef.current += 1;
+      setWatchSeconds(watchSecondsRef.current);
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+      if (sessionIdRef.current) {
+        endOnlineLectureSession(sessionIdRef.current, watchSecondsRef.current);
+      }
+    };
+  }, [isOpen, lesson?.id, studentId, studentName, courseTitle]);
+
+  const handleClose = () => {
+    if (sessionIdRef.current) {
+      endOnlineLectureSession(sessionIdRef.current, watchSecondsRef.current);
+    }
+    onClose();
+  };
+
   if (!isOpen || !lesson) return null;
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
@@ -64,13 +119,19 @@ export const LessonPlayerModal: React.FC<LessonPlayerModalProps> = ({
         {/* Header */}
         <div className="bg-slate-950 p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3">
+            {/* Live Online Attendance Tracking Indicator */}
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping inline-block" />
+              <span>تسجيل الحضور الأونلاين: {formatTime(watchSeconds)}</span>
+            </div>
+
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold">
               <ShieldCheck className="w-4 h-4" />
               <span>مشغل محمي بتقنية HLS DRM</span>

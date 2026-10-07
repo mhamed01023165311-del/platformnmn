@@ -20,7 +20,12 @@ import {
   Trash2, 
   GraduationCap,
   Copy,
-  Check
+  Check,
+  QrCode,
+  Calendar,
+  Radio,
+  Video,
+  MapPin
 } from 'lucide-react';
 import { 
   fetchAllStudentsAdmin, 
@@ -28,10 +33,15 @@ import {
   toggleStudentCourseAdmin, 
   resetStudentDeviceLockAdmin,
   fetchSmsLogsAdmin,
-  approveSmsLogAdmin 
+  approveSmsLogAdmin,
+  fetchAllAttendanceRecordsAdmin,
+  fetchOnlineAttendanceAdmin,
+  AttendanceRecord,
+  OnlineLectureSession
 } from '../firebase';
 import { COURSES_DATA } from '../data/mockData';
 import { Course } from '../types';
+import { AttendanceQrScannerModal } from './AttendanceQrScannerModal';
 
 interface DeveloperDashboardProps {
   onSwitchToStudentView: () => void;
@@ -42,12 +52,22 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
   onSwitchToStudentView,
   onLogout
 }) => {
-  const [activeTab, setActiveTab] = useState<'students' | 'courses' | 'sms' | 'settings'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'attendance' | 'online_tracking' | 'courses' | 'sms' | 'settings'>('students');
 
   // Students State
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingStudents, setLoadingStudents] = useState(false);
+
+  // Attendance Records State & Scanner Modal
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [showQrScannerModal, setShowQrScannerModal] = useState(false);
+  const [selectedCenterFilter, setSelectedCenterFilter] = useState('all');
+
+  // Online Lecture Tracking State
+  const [onlineSessions, setOnlineSessions] = useState<OnlineLectureSession[]>([]);
+  const [loadingOnline, setLoadingOnline] = useState(false);
 
   // Balance Adjustment Modal State
   const [selectedStudentForBalance, setSelectedStudentForBalance] = useState<any | null>(null);
@@ -84,6 +104,8 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
   useEffect(() => {
     loadStudents();
     loadSmsLogs();
+    loadAttendance();
+    loadOnlineTracking();
   }, []);
 
   const loadStudents = async () => {
@@ -93,6 +115,26 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
       setStudentsList(data);
     } finally {
       setLoadingStudents(false);
+    }
+  };
+
+  const loadAttendance = async () => {
+    setLoadingAttendance(true);
+    try {
+      const data = await fetchAllAttendanceRecordsAdmin();
+      setAttendanceRecords(data);
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
+  const loadOnlineTracking = async () => {
+    setLoadingOnline(true);
+    try {
+      const data = await fetchOnlineAttendanceAdmin();
+      setOnlineSessions(data);
+    } finally {
+      setLoadingOnline(false);
     }
   };
 
@@ -245,8 +287,16 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
 
         <div className="flex items-center gap-2.5 self-start md:self-auto">
           <button
+            onClick={() => setShowQrScannerModal(true)}
+            className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-emerald-950/50"
+          >
+            <QrCode className="w-4 h-4" />
+            <span>ماسح الـ QR Code للحضور</span>
+          </button>
+
+          <button
             onClick={onSwitchToStudentView}
-            className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md"
+            className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border border-slate-700"
           >
             <Eye className="w-4 h-4" />
             <span>معاينة واجهة الطالب</span>
@@ -274,6 +324,30 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
         >
           <Users className="w-4 h-4" />
           <span>إدارة الطلاب ({studentsList.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('attendance')}
+          className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer ${
+            activeTab === 'attendance' 
+              ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/40' 
+              : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+          }`}
+        >
+          <QrCode className="w-4 h-4" />
+          <span>حضور السنتر والـ QR ({attendanceRecords.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('online_tracking')}
+          className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition cursor-pointer ${
+            activeTab === 'online_tracking' 
+              ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/40' 
+              : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+          }`}
+        >
+          <Video className="w-4 h-4" />
+          <span>تتبع مشاهدات الأونلاين ({onlineSessions.length})</span>
         </button>
 
         <button
@@ -420,7 +494,198 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 2: إدارة الكورسات والمحتوى */}
+      {/* TAB 2: حضور السنتر بالـ QR Code */}
+      {activeTab === 'attendance' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-emerald-400" />
+                <span>سجلات حضور السنتر عبر مسح الـ QR Code (Attendance Records)</span>
+              </h2>
+              <p className="text-xs text-slate-400">يتم تسجيل كل طالب فورياً بمجرد مسح كود بطاقته بالهاتف أو الكاميرا</p>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => setShowQrScannerModal(true)}
+                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/50 cursor-pointer"
+              >
+                <QrCode className="w-4 h-4" />
+                <span>فتح ماسح الـ QR Code للحضور</span>
+              </button>
+
+              <button
+                onClick={loadAttendance}
+                className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingAttendance ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Stats Banner */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <span className="text-[11px] text-slate-400 block font-medium">إجمالي سجلات الحضور:</span>
+              <span className="text-xl font-black text-white font-mono mt-0.5 block">{attendanceRecords.length} حضور</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <span className="text-[11px] text-slate-400 block font-medium">حضور اليوم:</span>
+              <span className="text-xl font-black text-emerald-400 font-mono mt-0.5 block">
+                {attendanceRecords.filter(r => r.date === new Date().toISOString().split('T')[0]).length} طالب
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <span className="text-[11px] text-slate-400 block font-medium">طريقة التسجيل الأساسية:</span>
+              <span className="text-sm font-bold text-indigo-300 mt-1 block flex items-center gap-1.5">
+                <QrCode className="w-4 h-4 text-indigo-400" />
+                <span>مسح بطاقة الطالب الرقمية</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Attendance Records Table */}
+          <div className="rounded-3xl bg-slate-900 border border-slate-800 divide-y divide-slate-800 overflow-hidden shadow-xl">
+            {attendanceRecords.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 text-xs">
+                <QrCode className="w-10 h-10 text-slate-700 mx-auto mb-2" />
+                <span>لا توجد سجلات حضور مسجلة حتى الآن. اضغط على "فتح ماسح الـ QR Code" لبدء تسجيل حضور الطلاب.</span>
+              </div>
+            ) : (
+              attendanceRecords.map((record, index) => (
+                <div key={record.id || index} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                      ✓
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">{record.student_name}</span>
+                        <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono text-[10px]" dir="ltr">
+                          {record.student_code}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 text-amber-400" />
+                        <span>{record.center_group}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 self-end sm:self-auto text-slate-300 font-mono text-xs">
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 block">{record.date}</span>
+                      <span className="text-emerald-400 font-bold">{record.time}</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
+                      حضر في السنتر ✓
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: تتبع مشاهدات المحاضرات الأونلاين */}
+      {activeTab === 'online_tracking' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <Video className="w-5 h-5 text-indigo-400" />
+                <span>تتبع مشاهدات وتفاعل الطلاب في المحاضرات الأونلاين (Online Attendance Tracking)</span>
+              </h2>
+              <p className="text-xs text-slate-400">يسجل تلقائياً وقت دخول وخروج الطالب ومدة المشاهدة بالدقائق والثواني</p>
+            </div>
+
+            <button
+              onClick={loadOnlineTracking}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition flex items-center gap-1.5 text-xs font-bold"
+            >
+              <RefreshCw className={`w-4 h-4 ${loadingOnline ? 'animate-spin' : ''}`} />
+              <span>تحديث السجلات</span>
+            </button>
+          </div>
+
+          {/* Stats Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <span className="text-[11px] text-slate-400 block font-medium">إجمالي جلسات المشاهدة:</span>
+              <span className="text-xl font-black text-white font-mono mt-0.5 block">{onlineSessions.length} جلسة</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <span className="text-[11px] text-slate-400 block font-medium">إجمالي ساعات المشاهدة التراكمية:</span>
+              <span className="text-xl font-black text-indigo-400 font-mono mt-0.5 block">
+                {(onlineSessions.reduce((acc, curr) => acc + (curr.duration_seconds || 0), 0) / 3600).toFixed(1)} ساعة
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+              <span className="text-[11px] text-slate-400 block font-medium">حالة التتبع:</span>
+              <span className="text-sm font-bold text-emerald-400 mt-1 block flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>تتبع نشط وتلقائي عبر مشغل HLS DRM</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Sessions List */}
+          <div className="rounded-3xl bg-slate-900 border border-slate-800 divide-y divide-slate-800 overflow-hidden shadow-xl">
+            {onlineSessions.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 text-xs">
+                <Video className="w-10 h-10 text-slate-700 mx-auto mb-2" />
+                <span>لا توجد جلسات مشاهدة أونلاين مسجلة حتى الآن.</span>
+              </div>
+            ) : (
+              onlineSessions.map((session, index) => {
+                const mins = Math.floor((session.duration_seconds || 0) / 60);
+                const secs = (session.duration_seconds || 0) % 60;
+
+                return (
+                  <div key={session.id || index} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">{session.student_name}</span>
+                        <span className="text-[11px] text-indigo-300 font-bold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                          {session.course_title || 'كورس الفيزياء'}
+                        </span>
+                      </div>
+                      <p className="text-slate-300 font-semibold text-xs">
+                        {session.lesson_title}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-4 self-end sm:self-auto">
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block font-mono">
+                          بدء: {new Date(session.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="font-mono text-emerald-400 font-black">
+                          مدة المشاهدة: {mins} دقيقة و {secs} ثانية
+                        </span>
+                      </div>
+
+                      <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold ${
+                        session.completed ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {session.completed ? 'أتم المشاهدة ✓' : 'مشاهدة جزئية'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: إدارة الكورسات والمحتوى */}
       {activeTab === 'courses' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -682,6 +947,17 @@ export const DeveloperDashboard: React.FC<DeveloperDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Attendance QR Code Live Scanner Modal */}
+      <AttendanceQrScannerModal
+        isOpen={showQrScannerModal}
+        onClose={() => setShowQrScannerModal(false)}
+        onAttendanceRecorded={(rec) => {
+          showToast('success', `تم تسجيل حضور الطالب (${rec.student_name}) بنجاح!`);
+          loadAttendance();
+          loadStudents();
+        }}
+      />
 
     </div>
   );

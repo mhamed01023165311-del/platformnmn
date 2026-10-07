@@ -81,6 +81,39 @@
         }
       },
       "required": ["type", "amount", "created_at"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Center physical attendance scan record",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "student_name": { "type": "string" },
+        "student_code": { "type": "string" },
+        "center_group": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["student_id", "student_name", "date", "time"]
+    },
+    "OnlineAttendance": {
+      "title": "OnlineAttendance",
+      "description": "Online lecture viewing duration tracking record",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "student_name": { "type": "string" },
+        "lesson_id": { "type": "string" },
+        "lesson_title": { "type": "string" },
+        "course_title": { "type": "string" },
+        "start_time": { "type": "string" },
+        "end_time": { "type": "string" },
+        "duration_seconds": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["student_id", "lesson_id", "start_time"]
     }
   },
   "firestore": {
@@ -95,6 +128,14 @@
     "/students/{studentId}/transactions/{transactionId}": {
       "schema": "WalletTransaction",
       "description": "Student wallet transactions history"
+    },
+    "/attendance_records/{recordId}": {
+      "schema": "AttendanceRecord",
+      "description": "Center attendance records"
+    },
+    "/online_attendance/{sessionId}": {
+      "schema": "OnlineAttendance",
+      "description": "Online video lecture viewing sessions"
     }
   }
 }

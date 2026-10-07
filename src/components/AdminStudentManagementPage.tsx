@@ -20,17 +20,24 @@ import {
   Mail, 
   Phone, 
   Hash,
-  Unlock
+  Unlock,
+  QrCode,
+  Calendar,
+  Clock
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   fetchAllStudentsAdmin, 
   updateStudentFullAdmin, 
   adjustStudentBalanceAdmin, 
   toggleStudentCourseAdmin, 
-  resetStudentDeviceLockAdmin 
+  resetStudentDeviceLockAdmin,
+  fetchStudentAttendanceHistory,
+  AttendanceRecord 
 } from '../firebase';
 import { COURSES_DATA } from '../data/mockData';
 import { Course } from '../types';
+import { AttendanceQrScannerModal } from './AttendanceQrScannerModal';
 
 interface AdminStudentManagementPageProps {
   courses?: Course[];
@@ -44,9 +51,11 @@ export const AdminStudentManagementPage: React.FC<AdminStudentManagementPageProp
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showQrScanner, setShowQrScanner] = useState(false);
   
   // Selected Student for Full Profile Modal
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+  const [studentAttendance, setStudentAttendance] = useState<AttendanceRecord[]>([]);
   
   // Edit Student Form State
   const [editName, setEditName] = useState('');
@@ -82,11 +91,17 @@ export const AdminStudentManagementPage: React.FC<AdminStudentManagementPageProp
   };
 
   // Open full details modal for student
-  const handleSelectStudent = (student: any) => {
+  const handleSelectStudent = async (student: any) => {
     setSelectedStudent(student);
     setEditName(student.name || '');
     setEditPhone(student.phone || '');
     setEditEmail(student.email || '');
+    try {
+      const records = await fetchStudentAttendanceHistory(student.id);
+      setStudentAttendance(records);
+    } catch {
+      setStudentAttendance([]);
+    }
   };
 
   const handleCopyCode = (code: string) => {
@@ -237,13 +252,23 @@ export const AdminStudentManagementPage: React.FC<AdminStudentManagementPageProp
             </p>
           </div>
 
-          <button
-            onClick={loadStudents}
-            className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-2 text-xs font-bold shrink-0 cursor-pointer"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>تحديث القائمة</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowQrScanner(true)}
+              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/50 transition cursor-pointer"
+            >
+              <QrCode className="w-4 h-4" />
+              <span>ماسح الـ QR Code للحضور</span>
+            </button>
+
+            <button
+              onClick={loadStudents}
+              className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-2 text-xs font-bold shrink-0 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>تحديث القائمة</span>
+            </button>
+          </div>
         </div>
 
         {/* Search Input Bar (Student ID / Name) */}
@@ -377,14 +402,23 @@ export const AdminStudentManagementPage: React.FC<AdminStudentManagementPageProp
 
             <div className="space-y-6 overflow-y-auto p-1 flex-1">
               
-              {/* Unique Student Code Card */}
-              <div className="p-4 rounded-2xl bg-slate-950 border border-indigo-500/40 flex items-center justify-between gap-3">
+              {/* Unique Student Code & QR Card */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-indigo-500/40 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-                    <Hash className="w-5 h-5" />
+                  <div className="bg-white p-2 rounded-xl shrink-0">
+                    <QRCodeSVG
+                      value={JSON.stringify({
+                        student_id: selectedStudent.id,
+                        student_code: selectedStudent.student_code || selectedStudent.id,
+                        name: selectedStudent.name,
+                        phone: selectedStudent.phone
+                      })}
+                      size={54}
+                      level="M"
+                    />
                   </div>
                   <div>
-                    <span className="text-[10px] text-indigo-300 block font-bold">كود الطالب الفريد (Student ID):</span>
+                    <span className="text-[10px] text-indigo-300 block font-bold">كود الطالب وبطاقة الـ QR (Student ID):</span>
                     <span className="text-base sm:text-lg font-black text-white font-mono" dir="ltr">
                       {selectedStudent.student_code || selectedStudent.id}
                     </span>
@@ -394,11 +428,42 @@ export const AdminStudentManagementPage: React.FC<AdminStudentManagementPageProp
                 <button
                   type="button"
                   onClick={() => handleCopyCode(selectedStudent.student_code || selectedStudent.id)}
-                  className="py-1.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  className="py-1.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer self-stretch sm:self-auto justify-center"
                 >
                   {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedCode ? 'تم النسخ' : 'نسخ الكود'}</span>
                 </button>
+              </div>
+
+              {/* Attendance History Section */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>سجل حضور الطالب في السنتر ({studentAttendance.length}):</span>
+                  </h4>
+                  <span className="text-[10px] text-slate-400">مسجل بالـ QR Code</span>
+                </div>
+
+                {studentAttendance.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-slate-500 bg-slate-900/60 rounded-xl">
+                    لم يتم تسجيل حضور في السنتر لهذا الطالب بعد
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800/80 max-h-36 overflow-y-auto rounded-xl bg-slate-900/80">
+                    {studentAttendance.map((rec, i) => (
+                      <div key={i} className="p-2.5 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-bold text-white block">{rec.center_group}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{rec.date} · {rec.time}</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                          حضر في السنتر ✓
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 1. Personal Details Form */}
@@ -587,6 +652,19 @@ export const AdminStudentManagementPage: React.FC<AdminStudentManagementPageProp
           </div>
         </div>
       )}
+
+      {/* Attendance QR Scanner Modal */}
+      <AttendanceQrScannerModal
+        isOpen={showQrScanner}
+        onClose={() => setShowQrScanner(false)}
+        onAttendanceRecorded={(rec) => {
+          showToast('success', `تم تسجيل حضور الطالب (${rec.student_name}) بنجاح!`);
+          loadStudents();
+          if (selectedStudent && selectedStudent.id === rec.student_id) {
+            setStudentAttendance(prev => [rec, ...prev]);
+          }
+        }}
+      />
 
     </div>
   );
