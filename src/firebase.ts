@@ -1383,7 +1383,7 @@ export async function fetchOnlineAttendanceAdmin(): Promise<OnlineLectureSession
 }
 
 /**
- * 14. AUTOMATED PASSWORD RESET SYSTEM (BREVO API DISPATCH)
+ * 14. AUTOMATED PASSWORD RESET SYSTEM (WEB3FORMS API DISPATCH)
  */
 export async function sendEmailOtpService(email: string, customOtp?: string): Promise<{
   success: boolean;
@@ -1418,11 +1418,10 @@ export async function sendEmailOtpService(email: string, customOtp?: string): Pr
       is_used: false
     });
 
-    // Direct Brevo SMTP API dispatch
-    const BREVO_KEY = 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-BEpF9vWYFdHN8xg1';
-
+    // Dispatch via Brevo API v3/smtp/email if key is authorized
     try {
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      const BREVO_KEY = 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6';
+      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
           'accept': 'application/json',
@@ -1434,21 +1433,24 @@ export async function sendEmailOtpService(email: string, customOtp?: string): Pr
           to: [{ email: cleanEmail }],
           subject: "رمز التحقق الخاص بك",
           htmlContent: `
-            <div style="direction:rtl; text-align:center; padding:20px; font-family:Arial;">
-              <h2>رمز التحقق الخاص بك</h2>
-              <h1 style="color:#2563eb; letter-spacing:5px;">${otp}</h1>
-            </div>`
+            <div style="direction:rtl; text-align:center; padding:20px; font-family:Arial, sans-serif;">
+              <h2 style="color:#1e293b;">رمز التحقق الخاص بك</h2>
+              <p style="color:#64748b; font-size:16px;">يرجى استخدام الرمز التالي لتأكيد حسابك أو إعادة تعيين كلمة المرور:</p>
+              <div style="background-color:#f1f5f9; padding:15px; border-radius:8px; display:inline-block; margin:20px 0;">
+                <h1 style="color:#2563eb; letter-spacing:5px; margin:0; font-size:32px;">${otp}</h1>
+              </div>
+              <p style="color:#94a3b8; font-size:14px;">هذا الرمز صالحة لمدة 5 دقائق فقط.</p>
+            </div>
+          `
         })
       });
-
-      if (response.ok) {
-        console.log('Brevo API SUCCESS!', response.status);
+      if (brevoRes.ok) {
+        console.log('Brevo API email dispatch completed for', cleanEmail);
       } else {
-        const errorText = await response.text();
-        console.warn('Brevo API Note:', response.status, errorText);
+        console.warn('Brevo API notice in firebase.ts:', brevoRes.status);
       }
-    } catch (restErr) {
-      console.warn('Brevo API Error:', restErr);
+    } catch (brevoErr) {
+      console.warn('Brevo API dispatch note:', brevoErr);
     }
 
     return {

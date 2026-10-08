@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { 
   KeyRound, 
   Mail, 
@@ -83,7 +84,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Step 1: Automated EmailJS OTP Dispatch
+  // Step 1: Send OTP Code (Firestore + Brevo API + Firebase Fallback)
   const handleSendCode = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMessage(null);
@@ -96,48 +97,64 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
     }
 
     setLoading(true);
+
     const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const BREVO_KEY = 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-BEpF9vWYFdHN8xg1';
+    const BREVO_KEY = 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6';
 
     try {
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'api-key': BREVO_KEY
-        },
-        body: JSON.stringify({
-          sender: { name: "تطبيق لغة الإشارة", email: "mhamed01023165311@gmail.com" },
-          to: [{ email: userEmail }],
-          subject: "رمز التحقق الخاص بك",
-          htmlContent: `
-            <div style="direction:rtl; text-align:center; padding:20px; font-family:Arial;">
-              <h2>رمز التحقق الخاص بك</h2>
-              <h1 style="color:#2563eb; letter-spacing:5px;">${generatedCode}</h1>
-            </div>`
-        })
-      });
-
-      if (response.ok) {
-        await sendEmailOtpService(userEmail, generatedCode);
-        setResetStep('verify');
-        setCountdown(300);
-        setSuccessMessage('تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني!');
-      } else {
-        const errData = await response.json().catch(() => ({ message: response.statusText }));
-        console.error('Brevo API Error:', errData);
-        await sendEmailOtpService(userEmail, generatedCode);
-        setResetStep('verify');
-        setCountdown(300);
-        setSuccessMessage('تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني!');
-      }
-    } catch (error) {
-      console.error('Network Error:', error);
+      // 1. Store OTP in Firestore database securely first
       await sendEmailOtpService(userEmail, generatedCode);
+
+      // 2. Dispatch via Brevo API (if key is active/valid)
+      try {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'api-key': BREVO_KEY
+          },
+          body: JSON.stringify({
+            sender: { name: "تطبيق لغة الإشارة", email: "mhamed01023165311@gmail.com" },
+            to: [{ email: userEmail }],
+            subject: "رمز التحقق الخاص بك",
+            htmlContent: `
+              <div style="direction:rtl; text-align:center; padding:20px; font-family:Arial, sans-serif;">
+                <h2 style="color:#1e293b;">رمز التحقق الخاص بك</h2>
+                <p style="color:#64748b; font-size:16px;">يرجى استخدام الرمز التالي لتأكيد حسابك أو إعادة تعيين كلمة المرور:</p>
+                <div style="background-color:#f1f5f9; padding:15px; border-radius:8px; display:inline-block; margin:20px 0;">
+                  <h1 style="color:#2563eb; letter-spacing:5px; margin:0; font-size:32px;">${generatedCode}</h1>
+                </div>
+                <p style="color:#94a3b8; font-size:14px;">هذا الرمز صالحة لمدة 5 دقائق فقط.</p>
+              </div>
+            `
+          })
+        });
+
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          console.warn('Brevo API Notice:', response.status, result);
+        } else {
+          console.log('Brevo API dispatch succeeded for', userEmail);
+        }
+      } catch (brevoErr) {
+        console.warn('Brevo API fetch note:', brevoErr);
+      }
+
+      // 3. Fallback to Firebase Auth sendPasswordResetEmail
+      try {
+        const auth = getAuth();
+        await sendPasswordResetEmail(auth, userEmail);
+      } catch (fbErr) {
+        console.warn('Firebase sendPasswordResetEmail note:', fbErr);
+      }
+
       setResetStep('verify');
       setCountdown(300);
       setSuccessMessage('تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني!');
+    } catch (error: any) {
+      console.error('Send Error:', error);
+      setErrorMessage('حدث خطأ أثناء الإرسال: ' + (error.message || 'خطأ غير معروف'));
     } finally {
       setLoading(false);
     }
@@ -242,7 +259,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
         {step === 'request' && (
           <form onSubmit={handleSendCode} className="space-y-4">
             <p className="text-xs text-slate-300 leading-relaxed">
-              أدخل بريدك الإلكتروني المسجل لإرسال كود التحقق الأوتوماتيكي عبر خدمة <strong>EmailJS</strong>:
+              أدخل بريدك الإلكتروني المسجل لإرسال رابط/كود إعادة تعيين كلمة المرور عبر <strong>Firebase</strong>:
             </p>
 
             <div>

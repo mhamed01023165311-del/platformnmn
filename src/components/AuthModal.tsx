@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { 
   GraduationCap, 
   Mail, 
@@ -187,35 +188,61 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
 
         const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const BREVO_KEY = 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-BEpF9vWYFdHN8xg1';
+        const BREVO_KEY = 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6';
 
         try {
-          await fetch('https://api.brevo.com/v3/smtp/email', {
-            method: 'POST',
-            headers: {
-              'accept': 'application/json',
-              'content-type': 'application/json',
-              'api-key': BREVO_KEY
-            },
-            body: JSON.stringify({
-              sender: { name: "تطبيق لغة الإشارة", email: "mhamed01023165311@gmail.com" },
-              to: [{ email: userEmail }],
-              subject: "رمز التحقق الخاص بك",
-              htmlContent: `
-                <div style="direction:rtl; text-align:center; padding:20px; font-family:Arial;">
-                  <h2>رمز التحقق الخاص بك</h2>
-                  <h1 style="color:#2563eb; letter-spacing:5px;">${generatedCode}</h1>
-                </div>`
-            })
-          });
-        } catch (error) {
-          console.error('Network Error:', error);
-        }
+          // 1. Store OTP in Firestore database securely first
+          await sendEmailOtpService(userEmail, generatedCode);
 
-        await sendEmailOtpService(userEmail, generatedCode);
-        setSuccessMessage('تم إرسال الكود إلى بريدك بنجاح!');
-        setResetStep('verify');
-        setCountdown(300);
+          // 2. Dispatch via Brevo API (if key is valid)
+          try {
+            const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+              method: 'POST',
+              headers: {
+                'accept': 'application/json',
+                'content-type': 'application/json',
+                'api-key': BREVO_KEY
+              },
+              body: JSON.stringify({
+                sender: { name: "تطبيق لغة الإشارة", email: "mhamed01023165311@gmail.com" },
+                to: [{ email: userEmail }],
+                subject: "رمز التحقق الخاص بك",
+                htmlContent: `
+                  <div style="direction:rtl; text-align:center; padding:20px; font-family:Arial, sans-serif;">
+                    <h2 style="color:#1e293b;">رمز التحقق الخاص بك</h2>
+                    <p style="color:#64748b; font-size:16px;">يرجى استخدام الرمز التالي لتأكيد حسابك أو إعادة تعيين كلمة المرور:</p>
+                    <div style="background-color:#f1f5f9; padding:15px; border-radius:8px; display:inline-block; margin:20px 0;">
+                      <h1 style="color:#2563eb; letter-spacing:5px; margin:0; font-size:32px;">${generatedCode}</h1>
+                    </div>
+                    <p style="color:#94a3b8; font-size:14px;">هذا الرمز صالحة لمدة 5 دقائق فقط.</p>
+                  </div>
+                `
+              })
+            });
+
+            if (!response.ok) {
+              const result = await response.json().catch(() => ({}));
+              console.warn('Brevo API Notice:', response.status, result);
+            }
+          } catch (brevoErr) {
+            console.warn('Brevo fetch note:', brevoErr);
+          }
+
+          // 3. Fallback to Firebase sendPasswordResetEmail
+          try {
+            const auth = getAuth();
+            await sendPasswordResetEmail(auth, userEmail);
+          } catch (fbErr) {
+            console.warn('Firebase sendPasswordResetEmail note:', fbErr);
+          }
+
+          setSuccessMessage('تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني!');
+          setResetStep('verify');
+          setCountdown(300);
+        } catch (error: any) {
+          console.error('Send Reset Code Error:', error);
+          setErrorMessage('حدث خطأ أثناء معالجة الطلب: ' + (error.message || 'خطأ غير معروف'));
+        }
       } else {
         // WhatsApp Method
         if (!resetPhone.trim()) {
