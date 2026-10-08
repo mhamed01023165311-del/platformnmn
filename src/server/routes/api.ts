@@ -454,7 +454,7 @@ apiRouter.post('/send-otp', async (req: Request, res: Response) => {
       });
     }
 
-    const BREVO_KEY = process.env.BREVO_API_KEY || process.env.VITE_BREVO_API_KEY || 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6';
+    const BREVO_KEY = process.env.VITE_BREVO_API_KEY || process.env.BREVO_API_KEY || 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6';
 
     const brevoResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',

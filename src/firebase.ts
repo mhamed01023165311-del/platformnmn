@@ -1414,32 +1414,22 @@ export const sendEmailOtpService = async (email: string, code: string) => {
 
     // 2. إرسال الإيميل عبر Backend Endpoint (/api/send-otp) عبر Brevo
     try {
-      const response = await fetch('/api/send-otp', {
+      await fetch('/api/send-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ email: cleanEmail, code })
-      });
-
-      if (response.ok) {
-        const resData = await response.json();
-        if (resData.success) {
-          return { success: true, message: 'تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني!' };
-        }
-      }
+      }).catch(() => {});
     } catch (backendErr) {
       console.warn('Backend /api/send-otp call notice:', backendErr);
     }
 
-    // 3. التنبيه الاحتياطي فوراً بالكود في حال تعذر السيرفر لأي سبب
-    alert(`رمز التحقق الخاص بك هو: ${code}\nيرجى إدخاله في مربع التحقق لتغيير كلمة المرور.`);
-    return { success: true, message: `رمز التحقق الخاص بك هو: ${code}` };
+    return { success: true, message: 'تم حفظ كود التحقق بنجاح' };
 
   } catch (error: any) {
     console.error('sendEmailOtpService Error:', error);
-    alert(`رمز التحقق الخاص بك هو: ${code}\nيرجى إدخاله في مربع التحقق لتغيير كلمة المرور.`);
-    return { success: true, message: `رمز التحقق الخاص بك هو: ${code}` };
+    return { success: false, message: error?.message || 'فشلت عملية إعداد الكود' };
   }
 };
 

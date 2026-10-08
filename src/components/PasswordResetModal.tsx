@@ -93,30 +93,25 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
 
     setLoading(true);
     const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const API_KEY = "Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6";
 
     try {
       // 1. حفظ الـ OTP في Firestore
       await sendEmailOtpService(userEmail, generatedCode);
 
-      // 2. قراءة المفتاح من الأسرار (process.env.BREVO_API_KEY)
-      const apiKey = 
-        (typeof process !== 'undefined' && process.env?.BREVO_API_KEY) || 
-        (import.meta as any).env?.VITE_BREVO_API_KEY || 
-        (import.meta as any).env?.BREVO_API_KEY || 
-        'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6';
-
+      // 2. استدعاء Brevo API المباشر بمفتاح صريح وبدون أي alert
       const response = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
           'accept': 'application/json',
           'content-type': 'application/json',
-          'api-key': apiKey
+          'api-key': API_KEY
         },
         body: JSON.stringify({
           sender: { name: "منصة الأستاذ", email: "mhamed01023265312@gmail.com" },
           to: [{ email: userEmail }],
           subject: "رمز التحقق الخاص بك",
-          htmlContent: `<div style="direction:rtl; text-align:center; padding:20px; font-family:Arial, sans-serif;"><h2>رمز التحقق الخاص بك هو:</h2><h1 style="color:#2563eb; letter-spacing:5px; font-size:32px;">${generatedCode}</h1><p>صالح لمدة 5 دقائق.</p></div>`
+          htmlContent: `<div style="direction:rtl; text-align:center; padding:20px; font-family:Arial, sans-serif;"><h2>رمز التحقق الخاص بك هو:</h2><h1 style="color:#2563eb; letter-spacing:5px; font-size:32px;">${generatedCode}</h1></div>`
         })
       });
 
@@ -127,7 +122,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
       } else {
         const err = await response.json().catch(() => ({}));
         console.error('Brevo Error:', err);
-        setErrorMessage('فشل الإرسال: ' + (err.message || 'يرجى التأكد من صحة المفتاح في الأسرار'));
+        setErrorMessage('فشل الإرسال عبر Brevo: ' + (err.message || 'خطأ في الاستجابة'));
       }
     } catch (error: any) {
       console.error('Send Error:', error);
