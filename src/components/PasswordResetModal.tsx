@@ -83,6 +83,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
 
   if (!isOpen) return null;
 
+  // الدالة المعدلة لمعالجة وإظهار الأخطاء التفصيلية
   const handleSendCode = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMessage(null);
@@ -99,26 +100,30 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
 
     try {
       // حفظ الرمز في قاعدة البيانات
-      await sendEmailOtpService(userEmail, generatedCode);
+      if (typeof sendEmailOtpService === 'function') {
+        await sendEmailOtpService(userEmail, generatedCode);
+      }
 
-      // إرسال البريد عبر السيرفر الداخلي
+      // إرسال الطلب لـ API الداخلي
       const res = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email: userEmail, code: generatedCode })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
         setResetStep('verify');
         setCountdown(300);
         setSuccessMessage('تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني!');
       } else {
-        setErrorMessage('فشل إرسال البريد: ' + (data.error?.message || 'حدث خطأ في الخادم'));
+        // طباعة نص المشكلة الصريح
+        const errorMsg = data.message || data.brevoError?.message || `خطأ سيرفر (${res.status})`;
+        setErrorMessage(`سبب المشكلة: ${errorMsg}`);
       }
     } catch (err: any) {
-      setErrorMessage('حدث خطأ أثناء الاتصال: ' + err.message);
+      setErrorMessage(`خطأ في الاتصال: ${err.message || 'فشل الوصول للسيرفر'}`);
     } finally {
       setLoading(false);
     }
