@@ -763,16 +763,11 @@ export async function signInWithGoogleAuth(
   if (!googleEmail) {
     try {
       const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/gmail.send');
       // CRITICAL: prompt: 'select_account' forces Google account selection window
       provider.setCustomParameters({
         prompt: 'select_account'
       });
       const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential?.accessToken) {
-        cachedGoogleAccessToken = credential.accessToken;
-      }
       if (result && result.user && result.user.email) {
         googleEmail = result.user.email;
         googleName = result.user.displayName || result.user.email.split('@')[0];
@@ -1387,31 +1382,8 @@ export async function fetchOnlineAttendanceAdmin(): Promise<OnlineLectureSession
 }
 
 /**
- * 14. AUTOMATED PASSWORD RESET SYSTEM (GMAIL API DISPATCH)
+ * 14. AUTOMATED PASSWORD RESET SYSTEM (BREVO API / BACKEND DISPATCH)
  */
-let cachedGoogleAccessToken: string | null = null;
-
-export function setGoogleAccessToken(token: string) {
-  cachedGoogleAccessToken = token;
-}
-
-export function createRawGmailMessage(toEmail: string, subject: string, bodyHtml: string): string {
-  const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
-  const messageParts = [
-    `To: ${toEmail}`,
-    'Content-Type: text/html; charset=utf-8',
-    'MIME-Version: 1.0',
-    `Subject: ${utf8Subject}`,
-    '',
-    bodyHtml
-  ];
-  const message = messageParts.join('\r\n');
-  return btoa(unescape(encodeURIComponent(message)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
 export const sendEmailOtpService = async (email: string, code: string) => {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
