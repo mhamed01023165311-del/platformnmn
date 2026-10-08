@@ -1,16 +1,37 @@
-export default async function handler(req, res) {
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // إعدادات CORS للسماح بالطلبات
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { email, code } = req.body;
+  const body = req.body || {};
+  const recipientEmail = body.email || body.userEmail;
+  const otpCode = body.code || body.generatedCode;
 
-  if (!email || !code) {
-    return res.status(400).json({ message: 'Missing email or code' });
+  if (!recipientEmail || !otpCode) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'البريد أو الرمز مفقود في الطلب',
+      receivedBody: body 
+    });
   }
 
   try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'accept': 'application/json',
@@ -19,20 +40,24 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         sender: { name: "منصة الأستاذ", email: "mhamed01023265312@gmail.com" },
-        to: [{ email: email }],
+        to: [{ email: recipientEmail }],
         subject: "رمز التحقق الخاص بك",
-        htmlContent: `<div style="direction:rtl;text-align:center;padding:20px;font-family:Arial,sans-serif;"><h2>رمز التحقق الخاص بك هو:</h2><h1 style="color:#2563eb;font-size:32px;letter-spacing:4px;">${code}</h1></div>`
+        htmlContent: `<div style="direction:rtl;text-align:center;padding:20px;font-family:Arial,sans-serif;"><h2>رمز التحقق الخاص بك هو:</h2><h1 style="color:#2563eb;font-size:32px;letter-spacing:4px;">${otpCode}</h1></div>`
       })
     });
 
-    const data = await response.json();
+    const brevoData = await brevoRes.json();
 
-    if (response.ok) {
-      return res.status(200).json({ success: true, data });
+    if (brevoRes.ok) {
+      return res.status(200).json({ success: true, data: brevoData });
     } else {
-      return res.status(400).json({ success: false, error: data });
+      return res.status(brevoRes.status).json({ 
+        success: false, 
+        message: brevoData.message || 'رفض Brevo الطلب', 
+        brevoError: brevoData 
+      });
     }
-  } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 }
