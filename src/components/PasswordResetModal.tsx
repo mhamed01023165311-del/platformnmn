@@ -89,44 +89,36 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
     setSuccessMessage(null);
 
     const userEmail = email.trim().toLowerCase();
-    if (!userEmail) return;
+    if (!userEmail) {
+      setErrorMessage('يرجى إدخال البريد الإلكتروني');
+      return;
+    }
 
     setLoading(true);
     const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const API_KEY = "Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6";
 
     try {
-      // 1. حفظ الـ OTP في Firestore
+      // حفظ الرمز في قاعدة البيانات
       await sendEmailOtpService(userEmail, generatedCode);
 
-      // 2. استدعاء Brevo API المباشر بمفتاح صريح وبدون أي alert
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      // إرسال البريد عبر السيرفر الداخلي
+      const res = await fetch('/api/send-otp', {
         method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'api-key': API_KEY
-        },
-        body: JSON.stringify({
-          sender: { name: "منصة الأستاذ", email: "mhamed01023265312@gmail.com" },
-          to: [{ email: userEmail }],
-          subject: "رمز التحقق الخاص بك",
-          htmlContent: `<div style="direction:rtl; text-align:center; padding:20px; font-family:Arial, sans-serif;"><h2>رمز التحقق الخاص بك هو:</h2><h1 style="color:#2563eb; letter-spacing:5px; font-size:32px;">${generatedCode}</h1></div>`
-        })
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, code: generatedCode })
       });
 
-      if (response.ok) {
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setResetStep('verify');
         setCountdown(300);
         setSuccessMessage('تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني!');
       } else {
-        const err = await response.json().catch(() => ({}));
-        console.error('Brevo Error:', err);
-        setErrorMessage('فشل الإرسال عبر Brevo: ' + (err.message || 'خطأ في الاستجابة'));
+        setErrorMessage('فشل إرسال البريد: ' + (data.error?.message || 'حدث خطأ في الخادم'));
       }
-    } catch (error: any) {
-      console.error('Send Error:', error);
-      setErrorMessage('حدث خطأ أثناء الاتصال: ' + error.message);
+    } catch (err: any) {
+      setErrorMessage('حدث خطأ أثناء الاتصال: ' + err.message);
     } finally {
       setLoading(false);
     }
