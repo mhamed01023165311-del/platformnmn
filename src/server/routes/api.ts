@@ -437,9 +437,71 @@ apiRouter.post('/withdraw', (req: Request, res: Response) => {
 });
 
 /**
- * 5. POST /api/sms/simulate
- * Helper to simulate an SMS arriving from a phone number for testing
+ * POST /api/send-otp
+ * Sends OTP email via Brevo API on the backend
+ * Body: { email, code }
  */
+apiRouter.post('/send-otp', async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const otpCode = String(code || '').trim();
+
+    if (!cleanEmail || !cleanEmail.includes('@') || !otpCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'يرجى توفير بريد إلكتروني صحيح وكود مكون من 6 أرقام'
+      });
+    }
+
+    const BREVO_KEY = process.env.BREVO_API_KEY || process.env.VITE_BREVO_API_KEY || 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6';
+
+    const brevoResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'api-key': BREVO_KEY
+      },
+      body: JSON.stringify({
+        sender: { name: 'منصة الأستاذ', email: 'mhamed01023265312@gmail.com' },
+        to: [{ email: cleanEmail }],
+        subject: 'رمز التحقق الخاص بك',
+        htmlContent: `
+          <div style="direction: rtl; font-family: Arial, sans-serif; padding: 20px; text-align: center;">
+            <h2>رمز التحقق الخاص بك</h2>
+            <p>رمز التحقق لتعيين كلمة المرور هو:</p>
+            <h1 style="color: #2563eb; letter-spacing: 4px; font-size: 32px;">${otpCode}</h1>
+            <p>هذا الكود صالح لمدة 5 دقائق فقط.</p>
+          </div>
+        `
+      })
+    });
+
+    const data = await brevoResponse.json().catch(() => ({}));
+
+    if (brevoResponse.ok) {
+      return res.json({
+        success: true,
+        message: 'تم إرسال كود التحقق بنجاح',
+        data
+      });
+    } else {
+      console.error('Brevo API error on backend:', data);
+      return res.status(brevoResponse.status || 500).json({
+        success: false,
+        error: data.message || 'فشل إرسال الإيميل عبر Brevo API',
+        details: data
+      });
+    }
+  } catch (err: any) {
+    console.error('Backend /api/send-otp error:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'حدث خطأ في السيرفر أثناء إرسال البريد'
+    });
+  }
+});
 apiRouter.post('/sms/simulate', (req: Request, res: Response) => {
   const { phone, amount } = req.body;
   const numAmount = parseFloat(amount) || 200;

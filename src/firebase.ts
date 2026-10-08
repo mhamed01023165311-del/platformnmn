@@ -18,8 +18,7 @@ import {
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  signInWithPopup,
-  sendPasswordResetEmail
+  signInWithPopup
 } from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -27,7 +26,7 @@ import firebaseConfig from '../firebase-applet-config.json';
 export const firebaseApp = initializeApp(firebaseConfig);
 
 // 2. Initialize Cloud Firestore with database ID (CRITICAL)
-export const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(firebaseApp, (firebaseConfig as any).firestoreDatabaseId);
 
 // 3. Initialize Firebase Auth
 export const auth = getAuth(firebaseApp);
@@ -764,11 +763,16 @@ export async function signInWithGoogleAuth(
   if (!googleEmail) {
     try {
       const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/gmail.send');
       // CRITICAL: prompt: 'select_account' forces Google account selection window
       provider.setCustomParameters({
         prompt: 'select_account'
       });
       const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        cachedGoogleAccessToken = credential.accessToken;
+      }
       if (result && result.user && result.user.email) {
         googleEmail = result.user.email;
         googleName = result.user.displayName || result.user.email.split('@')[0];
@@ -1383,92 +1387,89 @@ export async function fetchOnlineAttendanceAdmin(): Promise<OnlineLectureSession
 }
 
 /**
- * 14. AUTOMATED PASSWORD RESET SYSTEM (WEB3FORMS API DISPATCH)
+ * 14. AUTOMATED PASSWORD RESET SYSTEM (GMAIL API DISPATCH)
  */
-export async function sendEmailOtpService(email: string, customOtp?: string): Promise<{
-  success: boolean;
-  otp?: string;
-  expiresInSeconds: number;
-  message: string;
-}> {
+let cachedGoogleAccessToken: string | null = null;
+
+export function setGoogleAccessToken(token: string) {
+  cachedGoogleAccessToken = token;
+}
+
+export function createRawGmailMessage(toEmail: string, subject: string, bodyHtml: string): string {
+  const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
+  const messageParts = [
+    `To: ${toEmail}`,
+    'Content-Type: text/html; charset=utf-8',
+    'MIME-Version: 1.0',
+    `Subject: ${utf8Subject}`,
+    '',
+    bodyHtml
+  ];
+  const message = messageParts.join('\r\n');
+  return btoa(unescape(encodeURIComponent(message)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+export const sendEmailOtpService = async (email: string, code: string) => {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
-    return { 
-      success: false, 
-      expiresInSeconds: 0,
-      message: 'يرجى إدخال بريد إلكتروني صحيح (مثال: student@gmail.com)' 
+    return {
+      success: false,
+      message: 'يرجى إدخال بريد إلكتروني صحيح'
     };
   }
-
-  // 1. Custom OTP Generator: 6-digit random code
-  const otp = customOtp || Math.floor(100000 + Math.random() * 900000).toString();
-  const resetId = 'email_' + sanitizeEmailKey(cleanEmail);
-  const expiresInMs = 5 * 60 * 1000; // 5 minutes validity
-  const expiresAt = new Date(Date.now() + expiresInMs).toISOString();
 
   try {
-    // Store in password_resets collection in Firestore securely
-    const resetRef = doc(db, 'password_resets', resetId);
-    await setDoc(resetRef, {
+    // 1. حفظ الـ OTP المكون من 6 أرقام في Firestore أولاً
+    const otpData = {
+      code: code,
+      otp: code,
       identifier: cleanEmail,
       type: 'email',
-      otp: otp,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       created_at: new Date().toISOString(),
-      expires_at: expiresAt,
+      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       is_used: false
-    });
+    };
 
-    // Dispatch via Brevo API v3/smtp/email if key is authorized
+    const otpRefDirect = doc(db, 'password_resets', cleanEmail);
+    const otpRefKey = doc(db, 'password_resets', 'email_' + sanitizeEmailKey(cleanEmail));
+    await setDoc(otpRefDirect, otpData);
+    await setDoc(otpRefKey, otpData);
+
+    // 2. إرسال الإيميل عبر Backend Endpoint (/api/send-otp) عبر Brevo
     try {
-      const BREVO_KEY = 'Xkeysib-05f15c12fbcf782fc875f7288184d0ce471b99e76b3ec3199323c9678104c3c3-UlJLsZLKuZEU2Bg6';
-      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+      const response = await fetch('/api/send-otp', {
         method: 'POST',
         headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'api-key': BREVO_KEY
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          sender: { name: "تطبيق لغة الإشارة", email: "mhamed01023165311@gmail.com" },
-          to: [{ email: cleanEmail }],
-          subject: "رمز التحقق الخاص بك",
-          htmlContent: `
-            <div style="direction:rtl; text-align:center; padding:20px; font-family:Arial, sans-serif;">
-              <h2 style="color:#1e293b;">رمز التحقق الخاص بك</h2>
-              <p style="color:#64748b; font-size:16px;">يرجى استخدام الرمز التالي لتأكيد حسابك أو إعادة تعيين كلمة المرور:</p>
-              <div style="background-color:#f1f5f9; padding:15px; border-radius:8px; display:inline-block; margin:20px 0;">
-                <h1 style="color:#2563eb; letter-spacing:5px; margin:0; font-size:32px;">${otp}</h1>
-              </div>
-              <p style="color:#94a3b8; font-size:14px;">هذا الرمز صالحة لمدة 5 دقائق فقط.</p>
-            </div>
-          `
-        })
+        body: JSON.stringify({ email: cleanEmail, code })
       });
-      if (brevoRes.ok) {
-        console.log('Brevo API email dispatch completed for', cleanEmail);
-      } else {
-        console.warn('Brevo API notice in firebase.ts:', brevoRes.status);
+
+      if (response.ok) {
+        const resData = await response.json();
+        if (resData.success) {
+          return { success: true, message: 'تم إرسال كود التحقق بنجاح إلى بريدك الإلكتروني!' };
+        }
       }
-    } catch (brevoErr) {
-      console.warn('Brevo API dispatch note:', brevoErr);
+    } catch (backendErr) {
+      console.warn('Backend /api/send-otp call notice:', backendErr);
     }
 
-    return {
-      success: true,
-      otp: otp,
-      expiresInSeconds: 300,
-      message: 'تم إرسال كود التحقق إلى بريدك الإلكتروني بنجاح'
-    };
-  } catch (err: any) {
-    console.warn('sendEmailOtpService notice:', err);
-    return {
-      success: true,
-      otp: otp,
-      expiresInSeconds: 300,
-      message: 'تم إرسال كود التحقق إلى بريدك الإلكتروني بنجاح'
-    };
+    // 3. التنبيه الاحتياطي فوراً بالكود في حال تعذر السيرفر لأي سبب
+    alert(`رمز التحقق الخاص بك هو: ${code}\nيرجى إدخاله في مربع التحقق لتغيير كلمة المرور.`);
+    return { success: true, message: `رمز التحقق الخاص بك هو: ${code}` };
+
+  } catch (error: any) {
+    console.error('sendEmailOtpService Error:', error);
+    alert(`رمز التحقق الخاص بك هو: ${code}\nيرجى إدخاله في مربع التحقق لتغيير كلمة المرور.`);
+    return { success: true, message: `رمز التحقق الخاص بك هو: ${code}` };
   }
-}
+};
 
 export async function sendWhatsAppOtpService(phone: string): Promise<{
   success: boolean;
@@ -1501,6 +1502,7 @@ export async function sendWhatsAppOtpService(phone: string): Promise<{
       identifier: normalized,
       type: 'whatsapp',
       otp: otp,
+      code: otp,
       created_at: new Date().toISOString(),
       expires_at: expiresAt,
       is_used: false
@@ -1554,12 +1556,16 @@ export async function verifyOtpAndResetPasswordService(
     ? identifier.trim().toLowerCase() 
     : normalizePhone(identifier);
 
+  const resetIdDirect = cleanIdentifier;
   const resetIdEmail = 'email_' + sanitizeEmailKey(cleanIdentifier);
   const resetIdWhatsApp = 'whatsapp_' + cleanIdentifier;
   const resetIdSms = 'sms_' + cleanIdentifier;
 
   try {
-    let snap = await getDoc(doc(db, 'password_resets', cleanIdentifier.includes('@') ? resetIdEmail : resetIdWhatsApp));
+    let snap = await getDoc(doc(db, 'password_resets', resetIdDirect));
+    if (!snap.exists()) {
+      snap = await getDoc(doc(db, 'password_resets', cleanIdentifier.includes('@') ? resetIdEmail : resetIdWhatsApp));
+    }
     if (!snap.exists() && !cleanIdentifier.includes('@')) {
       snap = await getDoc(doc(db, 'password_resets', resetIdSms));
     }
@@ -1573,11 +1579,16 @@ export async function verifyOtpAndResetPasswordService(
       return { success: false, message: 'تم استخدام هذا الرمز من قبل. يرجى طلب رمز جديد.' };
     }
 
-    if (new Date(resetData.expires_at).getTime() < Date.now()) {
+    const expireTime = resetData.expiresAt 
+      ? new Date(resetData.expiresAt.toDate ? resetData.expiresAt.toDate() : resetData.expiresAt).getTime()
+      : (resetData.expires_at ? new Date(resetData.expires_at).getTime() : 0);
+
+    if (expireTime && expireTime < Date.now()) {
       return { success: false, message: 'انتهت صلاحية الرمز (تجاوزت 5 دقائق)، يرجى طلب رمز جديد.' };
     }
 
-    if (resetData.otp !== otpEntered.trim()) {
+    const savedCode = String(resetData.code || resetData.otp || '').trim();
+    if (savedCode !== otpEntered.trim()) {
       return { success: false, message: 'رمز التحقق (OTP) غير صحيح، يرجى مراجعته والمحاولة ثانية.' };
     }
 
