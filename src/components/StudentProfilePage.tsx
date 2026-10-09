@@ -24,6 +24,7 @@ import {
   Maximize2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { StudentIdCard } from './StudentIdCard';
 import { 
   UserAccount, 
   updateStudentProfileInFirestore, 
@@ -151,7 +152,9 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   const todayAttendance = attendanceRecords.find(r => r.date === todayStr);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8 animate-fadeIn" dir="rtl">
+    <>
+      {/* Normal Website View (Hidden during print) */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8 animate-fadeIn print:hidden" dir="rtl">
       
       {/* Toast Notification */}
       {toast && (
@@ -547,7 +550,19 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         </div>
       )}
 
-    </div>
+      </div>
+
+      {/* Hidden Print-Only Student Card: Appears centered on blank paper when window.print() is called */}
+      <div className="hidden print:flex print:fixed print:inset-0 print:m-0 print:p-0 print:w-screen print:h-screen print:items-center print:justify-center print:bg-white print:z-[99999]">
+        <StudentIdCard
+          name={name}
+          studentCode={displayCode}
+          grade={currentUser?.academic_year || currentUser?.grade || 'الصف الثالث الثانوي'}
+          avatarUrl={avatar}
+          academicYear={currentUser?.school_year || '2024 / 2025'}
+        />
+      </div>
+    </>
   );
 };
 

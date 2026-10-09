@@ -374,7 +374,7 @@ export function App() {
 
       {/* Developer / Admin Top Action Bar */}
       {isDeveloperMode && (
-        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-md sticky top-0 z-50">
+        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-md sticky top-0 z-50 print:hidden">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-slate-950" />
             <span className="font-black">وضع المطور والأدمن مفعّل (Admin Mode) - تعديل المدرس والكورسات وإدارة الطلاب</span>
@@ -421,7 +421,7 @@ export function App() {
       )}
 
       {/* Top Header Bar */}
-      <header className={`sticky z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 sm:px-8 py-3.5 sm:py-4 ${isDeveloperMode ? 'top-9' : 'top-0'}`}>
+      <header className={`sticky z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 sm:px-8 py-3.5 sm:py-4 print:hidden ${isDeveloperMode ? 'top-9' : 'top-0'}`}>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           
           {/* Logo & Platform Name */}
@@ -583,12 +583,14 @@ export function App() {
 
       {/* Interactive Organic Bottom Nav Bar (Only visible after login/signup) */}
       {currentUser && (
-        <OrganicBottomNav
-          currentPage={currentPage}
-          onNavigate={setCurrentPage}
-          walletBalance={balance}
-          isDeveloper={isDeveloperMode}
-        />
+        <div className="print:hidden">
+          <OrganicBottomNav
+            currentPage={currentPage}
+            onNavigate={setCurrentPage}
+            walletBalance={balance}
+            isDeveloper={isDeveloperMode}
+          />
+        </div>
       )}
 
     </div>

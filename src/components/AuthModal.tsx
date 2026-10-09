@@ -238,8 +238,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    if (!otpCode || otpCode.trim().length !== 6) {
-      setErrorMessage('يرجى إدخال رمز التحقق المكون من 6 أرقام كاملاً');
+    const expectedLen = resetMethod === 'whatsapp' ? 8 : 6;
+    if (!otpCode || otpCode.trim().length !== expectedLen) {
+      setErrorMessage(`يرجى إدخال رمز التحقق المكون من ${expectedLen} أرقام كاملاً`);
       return;
     }
 
@@ -666,17 +667,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    أدخل رمز التحقق (OTP) المكون من 6 أرقام:
+                    {resetMethod === 'whatsapp'
+                      ? 'أدخل رمز التحقق (OTP) المكون من 8 أرقام المرسل عبر الواتساب:'
+                      : 'أدخل رمز التحقق (OTP) المكون من 6 أرقام:'}
                   </label>
                   <div className="relative">
                     <input
                       type="text"
                       required
-                      maxLength={6}
-                      placeholder="123456"
+                      maxLength={resetMethod === 'whatsapp' ? 8 : 6}
+                      placeholder={resetMethod === 'whatsapp' ? '12345678' : '123456'}
                       value={otpCode}
                       onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-full bg-slate-950 border border-amber-500/50 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-center text-xl font-mono font-black text-amber-300 tracking-widest placeholder:text-slate-600 focus:outline-none shadow-inner"
+                      className={`w-full bg-slate-950 border ${
+                        resetMethod === 'whatsapp'
+                          ? 'border-emerald-500/50 focus:border-emerald-400 text-emerald-300'
+                          : 'border-amber-500/50 focus:border-amber-400 text-amber-300'
+                      } rounded-xl px-3.5 py-2.5 text-center text-xl font-mono font-black tracking-widest placeholder:text-slate-600 focus:outline-none shadow-inner`}
                     />
                   </div>
                 </div>

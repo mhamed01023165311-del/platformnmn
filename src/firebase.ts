@@ -548,6 +548,9 @@ export interface UserAccount {
   active_device_id: string;
   created_at: string;
   last_login_at: string;
+  grade?: string;
+  academic_year?: string;
+  school_year?: string;
 }
 
 export function generateStudentCode(): string {
@@ -1448,8 +1451,8 @@ export async function sendWhatsAppOtpService(phone: string): Promise<{
     };
   }
 
-  // 1. WhatsApp OTP Generator: 6-digit random code
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  // 1. WhatsApp OTP Generator: 8-digit random code
+  const otp = Math.floor(10000000 + Math.random() * 90000000).toString();
   const resetId = 'whatsapp_' + normalized;
   const expiresInMs = 5 * 60 * 1000; // 5 minutes validity
   const expiresAt = new Date(Date.now() + expiresInMs).toISOString();
@@ -1470,17 +1473,13 @@ export async function sendWhatsAppOtpService(phone: string): Promise<{
       is_used: false
     });
 
-    // Execute automated WhatsApp API request behind the scenes
+    // Execute automated WhatsApp API request via Backend endpoint
     try {
-      fetch('https://api.ultramsg.com/instance_ostad/messages/chat', {
+      await fetch('/api/send-whatsapp-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          token: 'ultramsg_token_ostad_2026',
-          to: '+' + intlPhone,
-          body: whatsappMsg
-        })
-      }).catch((e) => console.log('Automated WhatsApp Gateway dispatch note:', e));
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: normalized, code: otp })
+      }).catch((e) => console.log('Backend WhatsApp dispatch note:', e));
     } catch (waErr) {
       console.warn('WhatsApp API dispatch notice:', waErr);
     }
