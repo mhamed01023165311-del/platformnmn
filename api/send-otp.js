@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // إعدادات CORS للسماح بالطلبات
+  // 1. السماح بجميع العناوين ومصادر CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -18,19 +18,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const body = req.body || {};
-  const recipientEmail = body.email || body.userEmail;
-  const otpCode = body.code || body.generatedCode;
-
-  if (!recipientEmail || !otpCode) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'البريد أو الرمز مفقود في الطلب',
-      receivedBody: body 
-    });
-  }
-
   try {
+    // 2. قراءة البيانات بمرونة لتناسب بيئة Vercel
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const recipientEmail = body.email || body.userEmail;
+    const otpCode = body.code || body.generatedCode;
+
+    if (!recipientEmail || !otpCode) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'بيانات البريد أو الرمز مفقودة في الطلب الموجه لـ Vercel' 
+      });
+    }
+
+    // 3. إرسال الطلب لـ Brevo مباشرة من سيرفر Vercel
     const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -51,9 +52,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (brevoRes.ok) {
       return res.status(200).json({ success: true, data: brevoData });
     } else {
+      // إرجاع خطأ Brevo الحقيقي عبر Vercel
       return res.status(brevoRes.status).json({ 
         success: false, 
-        message: brevoData.message || 'رفض Brevo الطلب', 
+        message: brevoData.message || 'رفض Brevo الطلب من Vercel', 
         brevoError: brevoData 
       });
     }
